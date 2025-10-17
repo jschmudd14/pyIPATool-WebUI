@@ -1,6 +1,6 @@
 # IPATool WebUI Python
 
-A modern web interface for IPATool, built with Flask and Python. This application provides a user-friendly way to interact with the Apple App Store, allowing you to search for apps, purchase licenses, and download IPA files.
+A modern web interface for a Python server with similar feature to IPATool, built with Flask and Python. This application provides a user-friendly way to interact with the Apple App Store, allowing you to search for apps, purchase licenses, and download IPA files (including old and tvOS versions)!
 
 ## Features
 
