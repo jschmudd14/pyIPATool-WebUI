@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}IPATool UI{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <main class="container">
+    <header>
+      <h1>IPATool Control Panel</h1>
+    </header>
+    {% block content %}{% endblock %}
+  </main>
+  <script>
+    window.APP_BASE_URL = {{ request.script_root|default('', true)|tojson }};
+  </script>
+  <script defer src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

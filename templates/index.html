@@ -1,0 +1,138 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<section id="auth-section" class="card">
+  <h2>Authentication</h2>
+  <form id="login-form" class="form-grid">
+    <label>Email
+      <input type="email" name="email" required>
+    </label>
+    <label>Password
+      <input type="password" name="password" required>
+    </label>
+    <p id="auth-code-message" class="hint" hidden>Two-factor authentication required. Enter the code Apple just sent and submit again.</p>
+    <button type="submit">Sign In</button>
+  </form>
+  <button id="logout-button" class="secondary" hidden>Sign Out</button>
+  <div id="account-info" class="status-box" hidden>
+    <h3>Active Account</h3>
+    <dl>
+  <dt>Name</dt><dd data-field="name">N/A</dd>
+  <dt>Email</dt><dd data-field="email">N/A</dd>
+  <dt>Storefront</dt><dd data-field="storeFront">N/A</dd>
+    </dl>
+  </div>
+</section>
+
+<section class="card" id="search-section" hidden>
+  <h2>Search Apps</h2>
+  <form id="search-form" class="form-inline">
+    <input type="text" name="term" placeholder="Search term" required>
+    <label>Results Limit
+      <input type="number" name="limit" value="5" min="1" max="50">
+    </label>
+    <label class="checkbox">
+      <input type="checkbox" name="includeTvos"> Search tvOS apps
+    </label>
+    <button type="submit">Search</button>
+  </form>
+  <div id="search-results" class="table-wrapper" hidden>
+    <table>
+      <thead>
+        <tr><th>Name</th><th>Bundle ID</th><th>Version</th><th>Price</th><th>App ID</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card" id="purchase-section" hidden>
+  <h2>Purchase License</h2>
+  <form id="purchase-form" class="form-grid">
+    <label>App ID
+      <input type="number" name="appId" placeholder="123456789">
+    </label>
+    <label>Bundle Identifier (optional, overrides App ID)
+      <input type="text" name="bundleId" placeholder="com.example.app">
+    </label>
+    <p class="hint">Provide either an App ID or a bundle identifier.</p>
+    <button type="submit">Acquire License</button>
+  </form>
+</section>
+
+<section class="card" id="versions-section" hidden>
+  <h2>List Versions</h2>
+  <form id="versions-form" class="form-grid">
+    <label>App ID
+      <input type="number" name="appId" placeholder="123456789">
+    </label>
+    <label>Bundle Identifier (optional, overrides App ID)
+      <input type="text" name="bundleId" placeholder="com.example.app">
+    </label>
+    <label>External Version ID (optional, can be used to filter to related versions such as tvOS)
+      <input type="text" name="externalVersionId" placeholder="Filter by version">
+    </label>
+    <p class="hint">Leave External Version ID empty to list all iOS versions, 
+        or provide one to get related versions (Such as other tvOS versions if you provide one).</p>
+    <button type="submit">Fetch Versions</button>
+  </form>
+  <div id="versions-output" class="status-box" hidden></div>
+</section>
+
+<section class="card" id="metadata-section" hidden>
+  <h2>Version Metadata</h2>
+  <form id="metadata-form" class="form-grid">
+    <label>App ID
+      <input type="number" name="appId" placeholder="123456789">
+    </label>
+    <label>Bundle Identifier (optional, overrides App ID)
+      <input type="text" name="bundleId" placeholder="com.example.app">
+    </label>
+    <label>External Version ID
+      <input type="text" name="versionId" placeholder="1234567890" required>
+    </label>
+    <button type="submit">Fetch Metadata</button>
+  </form>
+  <div id="metadata-output" class="status-box" hidden></div>
+</section>
+
+<section class="card" id="download-section" hidden>
+  <h2>Download IPA</h2>
+  <form id="download-form" class="form-grid">
+    <label>App ID
+      <input type="number" name="appId" placeholder="123456789">
+    </label>
+    <label>Bundle Identifier (optional, overrides App ID)
+      <input type="text" name="bundleId" placeholder="com.example.app">
+    </label>
+    <label>External Version ID (optional)
+      <input type="text" name="externalVersionId" placeholder="Latest by default">
+    </label>
+    <label>Output Path (optional)
+      <input type="text" name="outputPath" placeholder="Optional custom path">
+    </label>
+    <label class="checkbox">
+      <input type="checkbox" name="purchaseIfNeeded"> Purchase licence automatically if required
+    </label>
+    <button type="submit">Download</button>
+  </form>
+  <div id="download-status" class="status-box" hidden></div>
+</section>
+
+<div id="auth-modal" class="modal" hidden>
+  <form id="auth-modal-form" class="modal-content">
+    <h3>Verification Required</h3>
+    <p id="auth-modal-message">Enter the verification code Apple just sent to continue.</p>
+    <label>Auth Code
+      <input id="auth-modal-input" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" maxlength="8" minlength="4" required>
+    </label>
+    <p id="auth-modal-error" class="error-text" hidden></p>
+    <div class="modal-actions">
+      <button type="button" id="auth-modal-cancel" class="secondary">Cancel</button>
+      <button type="submit">Verify</button>
+    </div>
+  </form>
+</div>
+
+<section id="toast" hidden></section>
+{% endblock %}
