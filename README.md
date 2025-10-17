@@ -95,6 +95,17 @@ The web interface will be available at `http://127.0.0.1:5000`
 
 - In the UI we can only search for tvOS apps which doesn't give back the internal versionID needed for downloads or finding other versions
 - To find that versionID, use iMazing to connect to your ATV, go to Manage Apps, right click or use option menu to Export to CSV, then use the StoreID as the App ID and the VersionID as the Version ID in this interface to both download and also find other tvOS versions
+1. Make sure you have the current version of the app downloaded on your Apple TV.
+2. Install **iMazing** on your Mac or PC
+3. Follow iMazing’s steps for connecting your Mac/PC to the Apple TV.
+4. In iMazing, go to **Tools → Manage Apps**.
+5. Right‑click (or use the options menu) and select **Export List to CSV**.
+6. Open the CSV file. For the app’s row:
+   - **Store ID** = `AppID` for IPATool  
+   - **Version ID** = `External Version ID` for IPATool
+7. Use those values to List Versions in the Web UI
+8. Check the MetaData of the different versions to find which you want download
+9. Use the App ID and Version ID to download whichever you choose
 
 ## Configuration
 
