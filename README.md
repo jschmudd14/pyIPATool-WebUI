@@ -10,7 +10,7 @@ A modern web interface for IPATool, built with Flask and Python. This applicatio
 - **Version Control**: List all available versions of an app
 - **Metadata Access**: View version-specific metadata (display version, release date)
 - **IPA Downloads**: Download IPA files with optional automatic license purchasing
-- **Modern UI**: Clean, responsive interface with dark mode support
+- **Modern UI**: Clean, responsive interface for simple usage
 
   <img width="2749" height="6308" alt="image" src="https://github.com/user-attachments/assets/434b3bbf-21ba-42fc-a6f9-e65781ec8798" />
 
