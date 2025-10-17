@@ -169,4 +169,4 @@ The application provides a REST API for programmatic access:
 
 ## Acknowledgments
 
-Based on the IPATool by majd for interacting with the Apple App Store.
+Based on the [IPATool by Majd](https://github.com/majd/ipatool) for interacting with the Apple App Store.
