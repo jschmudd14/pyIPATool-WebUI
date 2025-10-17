@@ -91,6 +91,11 @@ The web interface will be available at `http://127.0.0.1:5000`
 3. Click "Download"
 4. IPA saves to device (not through browser)
 
+## tvOS Notes
+
+- In the UI we can only search for tvOS apps which doesn't give back the internal versionID needed for downloads or finding other versions
+- To find that versionID, use iMazing to connect to your ATV, go to Manage Apps, right click or use option menu to Export to CSV, then use the StoreID as the App ID and the VersionID as the Version ID in this interface to both download and also find other tvOS versions
+
 ## Configuration
 
 ### SSL/TLS Verification
@@ -157,11 +162,6 @@ The application provides a REST API for programmatic access:
 - Check that you have sufficient disk space
 - Verify the app is available in your account's storefront
 - Ensure you have the necessary license for the app
-
-## tvOS Notes
-
-- In the UI we can only search for tvOS apps which doesn't give back the internal versionID needed for downloads or finding other versions
-- To find that versionID, use iMazing to connect to your ATV, go to Manage Apps, right click or use option menu to Export to CSV, then use the StoreID as the App ID and the VersionID as the Version ID in this interface to both download and also find other tvOS versions
 
 ## Architecture
 
