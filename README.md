@@ -88,7 +88,7 @@ The web interface will be available at `http://127.0.0.1:5000`
 7. Use those values to do a Direct Lookup
 8. Choose the version you want and download it
 
-### Storage Locations
+## Storage Locations
 
 The application stores data in `~/.ipatool/`:
 - `keychain.json` - Account credentials
