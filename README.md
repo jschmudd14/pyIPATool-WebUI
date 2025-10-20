@@ -88,25 +88,6 @@ The web interface will be available at `http://127.0.0.1:5000`
 7. Use those values to do a Direct Lookup
 8. Choose the version you want and download it
 
-## Configuration
-
-### SSL/TLS Verification
-
-The application supports custom SSL certificates:
-
-- **Disable SSL verification** (not recommended):
-  ```bash
-  export IPATOOL_SSL_NO_VERIFY=1
-  ```
-
-- **Use custom CA bundle**:
-  ```bash
-  export IPATOOL_CA_BUNDLE=/path/to/ca-bundle.pem
-  ```
-
-- **Default CA bundle location**:
-  Place your certificate at `~/.ipatool/ca-bundle.pem`
-
 ### Storage Locations
 
 The application stores data in `~/.ipatool/`:
@@ -136,6 +117,26 @@ The application provides a REST API for programmatic access:
 - Session cookies are persisted in `~/.ipatool/cookies.lwp`
 - The application uses password tokens for App Store authentication
 - Two-factor authentication is fully supported
+
+## Optional Configuration
+
+### SSL/TLS Verification
+
+The application supports custom SSL certificates:
+
+- **Disable SSL verification** (not recommended):
+  ```bash
+  export IPATOOL_SSL_NO_VERIFY=1
+  ```
+
+- **Use custom CA bundle**:
+  ```bash
+  export IPATOOL_CA_BUNDLE=/path/to/ca-bundle.pem
+  ```
+
+- **Default CA bundle location**:
+  Place your certificate at `~/.ipatool/ca-bundle.pem`
+  
 
 ## Troubleshooting
 
