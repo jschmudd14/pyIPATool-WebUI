@@ -12,8 +12,9 @@ A modern web interface for a Python server with similar feature to IPATool, buil
 - **IPA Downloads**: Download IPA files with optional automatic license purchasing
 - **Modern UI**: Clean, responsive interface for simple usage
 
-  <img width="2749" height="6308" alt="image" src="https://github.com/user-attachments/assets/434b3bbf-21ba-42fc-a6f9-e65781ec8798" />
+<img width="2018" height="4448" alt="image" src="https://github.com/user-attachments/assets/ec40a529-51bb-4032-9ec5-6bce70532a71" />
 
+<img width="1931" height="1145" alt="image" src="https://github.com/user-attachments/assets/362fdf7c-57df-435e-a386-78929d833e27" />
 
 ## Prerequisites
 
