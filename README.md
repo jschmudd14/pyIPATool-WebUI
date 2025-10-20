@@ -1,6 +1,6 @@
 # IPATool WebUI Python
 
-A modern web interface for a Python server with similar feature to IPATool, built with Flask and Python. This application provides a user-friendly way to interact with the Apple App Store, allowing you to search for apps, purchase licenses, and download IPA files (including old and tvOS versions)!
+A feature-first web interface for interacting with the Apple App Store IPA files: search apps with configurable result limits (including tvOS), view versions and metadata, acquire free app licenses automatically, and download IPA files (including older and tvOS releases) with optional automatic license purchase. Supports Apple ID sign‑in with two‑factor authentication and exposes a REST API for programmatic use. Implemented as a clean, responsive frontend served by a Python Flask backend.
 
 ## Features
 
@@ -58,39 +58,20 @@ The web interface will be available at `http://127.0.0.1:5000`
 2. Enter a search term
 3. Optionally adjust the results limit (1-50) and choose whether to search tvOS apps vs just iOS/iPadOS apps
 4. Click "Search"
-5. Results will display: Name, Bundle ID, Version, Price, and App ID
-
-### Purchasing Licenses
-
-1. Enter either:
-   - **App ID** (numeric identifier from search results)
-   - **Bundle Identifier** (e.g., `com.example.app`)
-2. Click "Acquire License"
-3. Note: Only free apps can be purchased
 
 ### Listing App Versions
 
-1. Enter either App ID or Bundle Identifier
-2. Optionally enter an External Version ID to filter related versions
-3. Click "Fetch Versions"
-4. View the latest version and complete version list
+1. Click on any app in search results, or use Direct Lookup to list versions to a specifc app id and optionally version id (to find related versions)
+2. View the latest version and complete version list
 
 ### Viewing Version Metadata
 
-1. Enter App ID or Bundle Identifier
-2. Enter the External Version ID (obtained from version listing)
-3. Click "Fetch Metadata"
-4. View display version and release date
+1. Click on a version to expand its metadata
 
 ### Downloading IPAs
 
-1. Enter App ID or Bundle Identifier
-2. Optionally specify:
-   - External Version ID (defaults to latest)
-   - Output path (defaults to current directory)
-   - Enable "Purchase license automatically if required"
-3. Click "Download"
-4. IPA saves to device (not through browser)
+1. In the expanded metadata view, click Download IPA
+2. It will first prepare (by downloading to the server cache), then pass that along to the browser to download
 
 ## tvOS Notes
 
@@ -104,9 +85,8 @@ The web interface will be available at `http://127.0.0.1:5000`
 6. Open the CSV file. For the app’s row:
    - **Store ID** = `AppID` for IPATool  
    - **Version ID** = `External Version ID` for IPATool
-7. Use those values to List Versions in the Web UI
-8. Check the MetaData of the different versions to find which you want download
-9. Use the App ID and Version ID to download whichever you choose
+7. Use those values to do a Direct Lookup
+8. Choose the version you want and download it
 
 ## Configuration
 

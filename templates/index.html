@@ -17,106 +17,63 @@
   <div id="account-info" class="status-box" hidden>
     <h3>Active Account</h3>
     <dl>
-  <dt>Name</dt><dd data-field="name">N/A</dd>
-  <dt>Email</dt><dd data-field="email">N/A</dd>
-  <dt>Storefront</dt><dd data-field="storeFront">N/A</dd>
+      <dt>Name</dt><dd data-field="name">N/A</dd>
+      <dt>Email</dt><dd data-field="email">N/A</dd>
+      <dt>Storefront</dt><dd data-field="storeFront">N/A</dd>
     </dl>
   </div>
 </section>
 
-<section class="card" id="search-section" hidden>
-  <h2>Search Apps</h2>
-  <form id="search-form" class="form-inline">
-    <input type="text" name="term" placeholder="Search term" required>
-    <label>Results Limit
-      <input type="number" name="limit" value="5" min="1" max="50">
-    </label>
-    <label class="checkbox">
-      <input type="checkbox" name="includeTvos"> Search tvOS apps
-    </label>
-    <button type="submit">Search</button>
-  </form>
-  <div id="search-results" class="table-wrapper" hidden>
-    <table>
-      <thead>
-        <tr><th>Name</th><th>Bundle ID</th><th>Version</th><th>Price</th><th>App ID</th></tr>
-      </thead>
-      <tbody></tbody>
-    </table>
+<section class="card" id="app-finder-section" hidden>
+  <h2>Find App</h2>
+  <div class="tab-group">
+    <button type="button" class="tab-btn active" data-tab="search">Search Store</button>
+    <button type="button" class="tab-btn" data-tab="direct">Direct Lookup</button>
+  </div>
+  
+  <div id="search-tab" class="tab-content active">
+    <form id="search-form" class="form-inline">
+      <input type="text" name="term" placeholder="Search for an app..." required>
+      <label>Limit
+        <input type="number" name="limit" value="3" min="1" max="50">
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" name="includeTvos" id="tvos-checkbox"> Include tvOS
+      </label>
+      <button type="submit">Search</button>
+    </form>
+    <p id="tvos-hint" class="hint" style="margin-top: 1rem;" hidden>💡 Tip: Searching with tvOS enabled finds tvOS apps, but versions shown will be iOS by default. Use Direct Lookup with a tvOS Version ID to view related tvOS versions.</p>
+    <div id="search-results" hidden></div>
+  </div>
+
+  <div id="direct-tab" class="tab-content">
+    <form id="direct-lookup-form" class="form-grid">
+      <label>App ID
+        <input type="number" name="appId" placeholder="123456789">
+      </label>
+      <p class="hint center">— OR —</p>
+      <label>Bundle Identifier
+        <input type="text" name="bundleId" placeholder="com.example.app">
+      </label>
+      <div style="border-top: 1px solid rgba(148, 163, 184, 0.2); margin: 0.5rem 0;"></div>
+      <label>Version ID (optional filter)
+        <input type="text" name="externalVersionId" placeholder="Filter by specific version ID">
+      </label>
+      <p class="hint">Provide an App ID or Bundle ID above. Optionally add a Version ID to filter related versions.</p>
+      <button type="submit">Load Versions</button>
+    </form>
   </div>
 </section>
 
-<section class="card" id="purchase-section" hidden>
-  <h2>Purchase License</h2>
-  <form id="purchase-form" class="form-grid">
-    <label>App ID
-      <input type="number" name="appId" placeholder="123456789">
-    </label>
-    <label>Bundle Identifier (optional, overrides App ID)
-      <input type="text" name="bundleId" placeholder="com.example.app">
-    </label>
-    <p class="hint">Provide either an App ID or a bundle identifier.</p>
-    <button type="submit">Acquire License</button>
-  </form>
-</section>
-
 <section class="card" id="versions-section" hidden>
-  <h2>List Versions</h2>
-  <form id="versions-form" class="form-grid">
-    <label>App ID
-      <input type="number" name="appId" placeholder="123456789">
-    </label>
-    <label>Bundle Identifier (optional, overrides App ID)
-      <input type="text" name="bundleId" placeholder="com.example.app">
-    </label>
-    <label>External Version ID (optional, can be used to filter to related versions such as tvOS)
-      <input type="text" name="externalVersionId" placeholder="Filter by version">
-    </label>
-    <p class="hint">Leave External Version ID empty to list all iOS versions, 
-        or provide one to get related versions (Such as other tvOS versions if you provide one).</p>
-    <button type="submit">Fetch Versions</button>
-  </form>
-  <div id="versions-output" class="status-box" hidden></div>
-</section>
-
-<section class="card" id="metadata-section" hidden>
-  <h2>Version Metadata</h2>
-  <form id="metadata-form" class="form-grid">
-    <label>App ID
-      <input type="number" name="appId" placeholder="123456789">
-    </label>
-    <label>Bundle Identifier (optional, overrides App ID)
-      <input type="text" name="bundleId" placeholder="com.example.app">
-    </label>
-    <label>External Version ID
-      <input type="text" name="versionId" placeholder="1234567890" required>
-    </label>
-    <button type="submit">Fetch Metadata</button>
-  </form>
-  <div id="metadata-output" class="status-box" hidden></div>
-</section>
-
-<section class="card" id="download-section" hidden>
-  <h2>Download IPA</h2>
-  <form id="download-form" class="form-grid">
-    <label>App ID
-      <input type="number" name="appId" placeholder="123456789">
-    </label>
-    <label>Bundle Identifier (optional, overrides App ID)
-      <input type="text" name="bundleId" placeholder="com.example.app">
-    </label>
-    <label>External Version ID (optional)
-      <input type="text" name="externalVersionId" placeholder="Latest by default">
-    </label>
-    <label>Output Path (optional)
-      <input type="text" name="outputPath" placeholder="Optional custom path">
-    </label>
-    <label class="checkbox">
-      <input type="checkbox" name="purchaseIfNeeded"> Purchase licence automatically if required
-    </label>
-    <button type="submit">Download</button>
-  </form>
-  <div id="download-status" class="status-box" hidden></div>
+  <div class="section-header">
+    <div>
+      <h2 id="app-title">App Versions</h2>
+      <p id="app-subtitle" class="subtitle"></p>
+    </div>
+    <button type="button" id="purchase-license-btn" class="secondary small">Acquire License</button>
+  </div>
+  <div id="versions-list"></div>
 </section>
 
 <div id="auth-modal" class="modal" hidden>
@@ -134,5 +91,28 @@
   </form>
 </div>
 
+<div id="purchase-modal" class="modal" hidden>
+  <div class="modal-content">
+    <h3>Acquire License</h3>
+    <p>This will purchase a free license for this app if you don't already own it.</p>
+    <form id="purchase-modal-form" class="form-grid">
+      <input type="hidden" name="appId" id="purchase-app-id">
+      <input type="hidden" name="bundleId" id="purchase-bundle-id">
+      <div class="modal-actions">
+        <button type="button" id="purchase-modal-cancel" class="secondary">Cancel</button>
+        <button type="submit">Acquire</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <section id="toast" hidden></section>
+
+<div id="download-progress" class="download-progress" hidden>
+  <div class="download-progress-spinner"></div>
+  <div>
+    <div id="download-progress-text" class="download-progress-text">Downloading...</div>
+    <div id="download-progress-filename" class="download-progress-filename" hidden></div>
+  </div>
+</div>
 {% endblock %}

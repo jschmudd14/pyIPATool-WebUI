@@ -5,7 +5,7 @@ class IPAToolUI {
     this.accountBox = document.querySelector('#account-info');
     this.accountFields = this.accountBox?.querySelectorAll('[data-field]') || [];
     this.toast = document.querySelector('#toast');
-    this.sections = document.querySelectorAll('#search-section, #purchase-section, #versions-section, #metadata-section, #download-section');
+    this.sections = document.querySelectorAll('#app-finder-section, #versions-section');
 
     this.baseUrl = window.APP_BASE_URL || '';
     if (this.baseUrl === '/') {
@@ -25,21 +25,25 @@ class IPAToolUI {
   this.authModalCancel = document.querySelector('#auth-modal-cancel');
   this.pendingCredentials = null;
 
-    this.forms = {
-      search: document.querySelector('#search-form'),
-      purchase: document.querySelector('#purchase-form'),
-      versions: document.querySelector('#versions-form'),
-      metadata: document.querySelector('#metadata-form'),
-      download: document.querySelector('#download-form'),
-    };
+    this.currentAppId = null;
+    this.currentBundleId = null;
 
-    this.outputs = {
-      searchTableBody: document.querySelector('#search-results tbody'),
-      searchWrapper: document.querySelector('#search-results'),
-      versions: document.querySelector('#versions-output'),
-      metadata: document.querySelector('#metadata-output'),
-      download: document.querySelector('#download-status'),
-    };
+    this.tabs = document.querySelectorAll('.tab-btn');
+    this.tabContents = document.querySelectorAll('.tab-content');
+    this.searchForm = document.querySelector('#search-form');
+    this.directLookupForm = document.querySelector('#direct-lookup-form');
+    this.searchResults = document.querySelector('#search-results');
+    this.versionsSection = document.querySelector('#versions-section');
+    this.versionsList = document.querySelector('#versions-list');
+    this.appTitle = document.querySelector('#app-title');
+    this.appSubtitle = document.querySelector('#app-subtitle');
+    this.purchaseLicenseBtn = document.querySelector('#purchase-license-btn');
+    this.purchaseModal = document.querySelector('#purchase-modal');
+    this.purchaseModalForm = document.querySelector('#purchase-modal-form');
+    this.purchaseModalCancel = document.querySelector('#purchase-modal-cancel');
+    this.downloadProgress = document.querySelector('#download-progress');
+    this.downloadProgressText = document.querySelector('#download-progress-text');
+    this.downloadProgressFilename = document.querySelector('#download-progress-filename');
   }
 
   apiUrl(path) {
@@ -64,6 +68,11 @@ class IPAToolUI {
   }
 
   init() {
+    // Hide versions section on initial load
+    if (this.versionsSection) {
+      this.versionsSection.hidden = true;
+    }
+
     this.loginForm?.addEventListener('submit', (event) => {
       event.preventDefault();
       this.handleLogin();
@@ -81,33 +90,62 @@ class IPAToolUI {
       this.pendingCredentials = null;
     });
 
-    this.forms.search?.addEventListener('submit', (event) => {
+    this.tabs?.forEach(tab => {
+      tab.addEventListener('click', () => this.switchTab(tab.dataset.tab));
+    });
+
+    // Toggle tvOS hint visibility
+    const tvosCheckbox = document.querySelector('#tvos-checkbox');
+    const tvosHint = document.querySelector('#tvos-hint');
+    if (tvosCheckbox && tvosHint) {
+      tvosCheckbox.addEventListener('change', (e) => {
+        tvosHint.hidden = !e.target.checked;
+      });
+    }
+
+    this.searchForm?.addEventListener('submit', (event) => {
       event.preventDefault();
       this.handleSearch();
     });
 
-    this.forms.purchase?.addEventListener('submit', (event) => {
+    this.directLookupForm?.addEventListener('submit', (event) => {
       event.preventDefault();
-      this.handlePurchase();
+      this.handleDirectLookup();
     });
 
-    this.forms.versions?.addEventListener('submit', (event) => {
-      event.preventDefault();
-      this.handleVersions();
+    this.purchaseLicenseBtn?.addEventListener('click', () => {
+      this.showPurchaseModal();
     });
 
-    this.forms.metadata?.addEventListener('submit', (event) => {
-      event.preventDefault();
-      this.handleMetadata();
+    this.purchaseModalCancel?.addEventListener('click', () => {
+      this.hidePurchaseModal();
     });
 
-    this.forms.download?.addEventListener('submit', (event) => {
+    this.purchaseModalForm?.addEventListener('submit', (event) => {
       event.preventDefault();
-      this.handleDownload();
+      this.handlePurchaseFromModal();
     });
 
-    this.toggleAuthCode(false);
     this.refreshAccountState();
+  }
+
+  switchTab(tabName) {
+    this.tabs.forEach(tab => {
+      tab.classList.toggle('active', tab.dataset.tab === tabName);
+    });
+    this.tabContents.forEach(content => {
+      content.classList.toggle('active', content.id === `${tabName}-tab`);
+    });
+    
+    // Hide versions section when switching tabs
+    if (this.versionsSection) {
+      this.versionsSection.hidden = true;
+    }
+    
+    // Clear search results when switching away from search tab
+    if (tabName !== 'search' && this.searchResults) {
+      this.searchResults.hidden = true;
+    }
   }
 
   setLoggedIn(isLoggedIn) {
@@ -126,7 +164,12 @@ class IPAToolUI {
       this.accountBox.hidden = !isLoggedIn;
     }
     this.sections.forEach((section) => {
-      section.hidden = !isLoggedIn;
+      if (section.id === 'app-finder-section') {
+        section.hidden = !isLoggedIn;
+      } else if (section.id === 'versions-section') {
+        // Always hide versions section when logging in/out
+        section.hidden = true;
+      }
     });
     if (!isLoggedIn) {
       this.clearAccountFields();
@@ -283,12 +326,16 @@ class IPAToolUI {
   }
 
   async handleSearch() {
-    const formData = this.serializeForm(this.forms.search);
+    const formData = this.serializeForm(this.searchForm);
     const params = new URLSearchParams();
     if (formData.term) params.set('term', formData.term);
     if (formData.limit) params.set('limit', formData.limit);
+    
+    // Store whether this is a tvOS search
+    this.lastSearchWasTvOS = false;
     if (formData.includeTvos === 'on' || formData.includeTvos === true) {
       params.set('includeTvos', 'true');
+      this.lastSearchWasTvOS = true;
     }
     
     try {
@@ -298,30 +345,335 @@ class IPAToolUI {
         throw new Error(payload.error || 'Search failed');
       }
       this.renderSearchResults(payload.results || []);
-      this.outputs.searchWrapper.hidden = false;
     } catch (error) {
       this.showToast(error.message || 'Search failed', true);
     }
   }
 
   renderSearchResults(results) {
-    if (!this.outputs.searchTableBody) return;
-    this.outputs.searchTableBody.innerHTML = '';
-    results.forEach((app) => {
-      const row = document.createElement('tr');
-      row.innerHTML = `
-        <td>${app.trackName || 'N/A'}</td>
-        <td>${app.bundleId || 'N/A'}</td>
-        <td>${app.version || 'N/A'}</td>
-        <td>${app.price ?? 0}</td>
-        <td>${app.trackId || 'N/A'}</td>
+    if (!this.searchResults) return;
+    
+    if (results.length === 0) {
+      this.searchResults.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🔍</div><p>No apps found</p></div>';
+      this.searchResults.hidden = false;
+      return;
+    }
+
+    this.searchResults.innerHTML = results.map(app => `
+      <div class="app-card" data-app-id="${app.trackId}" data-bundle-id="${app.bundleId}">
+        <div class="app-card-header">
+          <div>
+            <h3 class="app-card-title">${app.trackName || 'Unknown'}</h3>
+            <div class="app-card-meta">
+              <span>📦 ${app.bundleId || 'N/A'}</span>
+              <span>🏷️ v${app.version || 'N/A'}</span>
+              ${app.price > 0 ? `<span>💰 $${app.price}</span>` : '<span class="badge">Free</span>'}
+            </div>
+            <div style="margin-top: 0.5rem;">
+              <span class="copy-code" data-copy="${app.trackId}" title="Click to copy App ID">
+                <span class="copy-icon">🆔</span>
+                <span>${app.trackId}</span>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    `).join('');
+
+    this.searchResults.querySelectorAll('.app-card').forEach(card => {
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('.copy-code')) {
+          return;
+        }
+        
+        // Show alert if this was a tvOS search
+        if (this.lastSearchWasTvOS) {
+          alert('Note: The versions listed will be iOS versions by default. To view tvOS-specific versions, use the Direct Lookup tab and enter a tvOS Version ID to filter related tvOS versions.');
+        }
+        
+        const appId = card.dataset.appId;
+        const bundleId = card.dataset.bundleId;
+        this.loadAppVersions(appId, bundleId);
+      });
+    });
+
+    this.searchResults.querySelectorAll('.copy-code').forEach(code => {
+      code.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const text = code.dataset.copy;
+        navigator.clipboard.writeText(text).then(() => {
+          this.showToast(`Copied: ${text}`);
+        }).catch(() => {
+          this.showToast('Failed to copy', true);
+        });
+      });
+    });
+
+    this.searchResults.hidden = false;
+  }
+
+  async handleDirectLookup() {
+    const formData = this.serializeForm(this.directLookupForm);
+    if (!formData.appId && !formData.bundleId) {
+      this.showToast('Please provide App ID or Bundle ID', true);
+      return;
+    }
+    this.loadAppVersions(formData.appId, formData.bundleId, formData.externalVersionId);
+  }
+
+  async loadAppVersions(appId, bundleId, externalVersionId = null) {
+    this.currentAppId = appId;
+    this.currentBundleId = bundleId;
+
+    const params = new URLSearchParams();
+    if (appId) params.set('appId', appId);
+    if (bundleId) params.set('bundleId', bundleId);
+    if (externalVersionId) params.set('externalVersionId', externalVersionId);
+
+    try {
+      this.versionsSection.hidden = false;
+      this.versionsList.innerHTML = '<div style="text-align:center;padding:2rem;"><div class="loading"></div></div>';
+      this.appTitle.textContent = 'Loading...';
+      this.appSubtitle.textContent = '';
+
+      const response = await fetch(`${this.apiUrl('/api/versions')}?${params.toString()}`);
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to load versions');
+      }
+
+      const versions = Array.isArray(data.externalVersionIdentifiers) ? data.externalVersionIdentifiers : [];
+      await this.loadAndRenderVersions(versions);
+    } catch (error) {
+      this.showToast(error.message || 'Failed to load versions', true);
+      this.versionsList.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div><p>${error.message}</p></div>`;
+      this.versionsSection.hidden = true;
+    }
+  }
+
+  async loadAndRenderVersions(versionIds) {
+    if (versionIds.length === 0) {
+      this.versionsList.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📦</div><p>No versions found</p></div>';
+      this.versionsSection.hidden = true;
+      return;
+    }
+
+    const metadataPromises = versionIds.map(versionId => this.fetchVersionMetadata(versionId));
+    const metadataResults = await Promise.allSettled(metadataPromises);
+    
+    const versions = metadataResults
+      .map((result, index) => {
+        if (result.status === 'fulfilled') {
+          return { ...result.value, versionId: versionIds[index] };
+        }
+        return null;
+      })
+      .filter(Boolean);
+
+    if (versions.length > 0) {
+      this.appTitle.textContent = versions[0].itemName || 'App Versions';
+      this.appSubtitle.textContent = `${versions[0].bundleId || this.currentBundleId} • ${versions.length} version${versions.length > 1 ? 's' : ''}`;
+      this.renderVersionCards(versions);
+      this.versionsSection.hidden = false;
+    } else {
+      this.versionsList.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📦</div><p>No versions found</p></div>';
+      this.versionsSection.hidden = true;
+    }
+  }
+
+  async fetchVersionMetadata(versionId) {
+    const params = new URLSearchParams();
+    if (this.currentAppId) params.set('appId', this.currentAppId);
+    if (this.currentBundleId) params.set('bundleId', this.currentBundleId);
+    params.set('versionId', versionId);
+
+    const response = await fetch(`${this.apiUrl('/api/version-metadata')}?${params.toString()}`);
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to load metadata');
+    }
+    return data;
+  }
+
+  renderVersionCards(versions) {
+    this.versionsList.innerHTML = versions.map((version, index) => {
+      const fileSizeMB = (version.fileSize / (1024 * 1024)).toFixed(2);
+      const releaseDate = new Date(version.releaseDate).toLocaleDateString();
+
+      return `
+        <div class="version-card" data-version-id="${version.versionId}" data-index="${index}">
+          <div class="version-header">
+            <div class="version-basic">
+              <div><strong>Version:</strong> ${version.displayVersion}</div>
+              <div><strong>Build:</strong> ${version.buildNumber}</div>
+              <div><strong>Size:</strong> ${fileSizeMB} MB</div>
+              <div><strong>Released:</strong> ${releaseDate}</div>
+            </div>
+            <span class="expand-icon">▼</span>
+          </div>
+          <div class="version-details">
+            <dl>
+              <dt>Version ID:</dt>
+              <dd>
+                <span class="copy-code" data-copy="${version.versionId}" title="Click to copy Version ID">
+                  <span>${version.versionId}</span>
+                </span>
+              </dd>
+              <dt>Bundle ID:</dt><dd>${version.bundleId}</dd>
+              <dt>Developer:</dt><dd>${version.artistName}</dd>
+              <dt>Genre:</dt><dd>${version.genre}</dd>
+              <dt>Age Rating:</dt><dd>${version.ageRating}</dd>
+              <dt>Copyright:</dt><dd>${version.copyright}</dd>
+            </dl>
+            <div class="version-actions">
+              <button type="button" class="download-version-btn" data-version-id="${version.versionId}">Download IPA</button>
+              <button type="button" class="download-with-purchase-btn secondary" data-version-id="${version.versionId}">Download + Acquire License</button>
+            </div>
+          </div>
+        </div>
       `;
-      this.outputs.searchTableBody.append(row);
+    }).join('');
+
+    this.versionsList.querySelectorAll('.version-card').forEach(card => {
+      const header = card.querySelector('.version-header');
+      header.addEventListener('click', () => {
+        card.classList.toggle('expanded');
+      });
+
+      const downloadBtn = card.querySelector('.download-version-btn');
+      const downloadWithPurchaseBtn = card.querySelector('.download-with-purchase-btn');
+      
+      downloadBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.downloadVersion(card.dataset.versionId, false);
+      });
+
+      downloadWithPurchaseBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.downloadVersion(card.dataset.versionId, true);
+      });
+    });
+
+    this.versionsList.querySelectorAll('.copy-code').forEach(code => {
+      code.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const text = code.dataset.copy;
+        navigator.clipboard.writeText(text).then(() => {
+          this.showToast(`Copied: ${text}`);
+        }).catch(() => {
+          this.showToast('Failed to copy', true);
+        });
+      });
     });
   }
 
-  async handlePurchase() {
-    const payload = this.serializeForm(this.forms.purchase);
+  async downloadVersion(versionId, purchaseIfNeeded) {
+    const payload = {
+      externalVersionId: versionId
+    };
+    if (this.currentAppId) payload.appId = this.currentAppId;
+    if (this.currentBundleId) payload.bundleId = this.currentBundleId;
+    if (purchaseIfNeeded) payload.purchaseIfNeeded = true;
+
+    try {
+      this.showToast('Starting download...');
+      this.showDownloadProgress('Preparing download...');
+      
+      const response = await fetch(this.apiUrl('/api/download-stream'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Download failed');
+      }
+      
+      // Get filename from Content-Disposition header or generate one
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = 'app.ipa';
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (match && match[1]) {
+          filename = match[1].replace(/['"]/g, '');
+        }
+      }
+      
+      this.updateDownloadProgress('Downloading...', filename);
+      
+      // Create blob from response
+      const blob = await response.blob();
+      
+      this.updateDownloadProgress('Saving file...', filename);
+      
+      // Create download link and trigger download
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      
+      // Cleanup
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      this.hideDownloadProgress();
+      this.showToast(`Downloaded: ${filename}`);
+    } catch (error) {
+      this.hideDownloadProgress();
+      this.showToast(error.message || 'Download failed', true);
+    }
+  }
+
+  showDownloadProgress(message, filename = '') {
+    if (!this.downloadProgress) return;
+    if (this.downloadProgressText) {
+      this.downloadProgressText.textContent = message;
+    }
+    if (this.downloadProgressFilename) {
+      this.downloadProgressFilename.textContent = filename;
+      this.downloadProgressFilename.hidden = !filename;
+    }
+    this.downloadProgress.hidden = false;
+  }
+
+  updateDownloadProgress(message, filename = '') {
+    if (this.downloadProgressText) {
+      this.downloadProgressText.textContent = message;
+    }
+    if (this.downloadProgressFilename && filename) {
+      this.downloadProgressFilename.textContent = filename;
+      this.downloadProgressFilename.hidden = false;
+    }
+  }
+
+  hideDownloadProgress() {
+    if (this.downloadProgress) {
+      this.downloadProgress.hidden = true;
+    }
+  }
+
+  showPurchaseModal() {
+    if (!this.purchaseModal) return;
+    document.querySelector('#purchase-app-id').value = this.currentAppId || '';
+    document.querySelector('#purchase-bundle-id').value = this.currentBundleId || '';
+    this.purchaseModal.hidden = false;
+  }
+
+  hidePurchaseModal() {
+    if (this.purchaseModal) {
+      this.purchaseModal.hidden = true;
+    }
+  }
+
+  async handlePurchaseFromModal() {
+    const payload = {};
+    if (this.currentAppId) payload.appId = this.currentAppId;
+    if (this.currentBundleId) payload.bundleId = this.currentBundleId;
+
     try {
       const response = await fetch(this.apiUrl('/api/purchase'), {
         method: 'POST',
@@ -333,106 +685,9 @@ class IPAToolUI {
         throw new Error(data.error || 'Purchase failed');
       }
       this.showToast('License acquired');
+      this.hidePurchaseModal();
     } catch (error) {
       this.showToast(error.message || 'Purchase failed', true);
-    }
-  }
-
-  async handleVersions() {
-    const formData = this.serializeForm(this.forms.versions);
-    const params = new URLSearchParams();
-    if (formData.appId) params.set('appId', formData.appId);
-    if (formData.bundleId) params.set('bundleId', formData.bundleId);
-    if (formData.externalVersionId) params.set('externalVersionId', formData.externalVersionId);
-    
-    try {
-      const response = await fetch(`${this.apiUrl('/api/versions')}?${params.toString()}`);
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to load versions');
-      }
-      // Format the versions output: bold labels and indented list for "All"
-      const latest = data.latestExternalVersionId ?? 'N/A';
-      const allVersions = Array.isArray(data.externalVersionIdentifiers) ? data.externalVersionIdentifiers : [];
-      this.outputs.versions.innerHTML = `
-        <div><strong>Latest:</strong> ${latest}</div>
-        <div><strong>All:</strong></div>
-        <ul style="margin:0.25rem 0 0 1.25rem; padding-left:1rem;">
-          ${allVersions.map((v) => `<li>${v}</li>`).join('')}
-        </ul>
-      `;
-      this.outputs.versions.hidden = false;
-    } catch (error) {
-      this.showToast(error.message || 'Failed to load versions', true);
-    }
-  }
-
-  async handleMetadata() {
-    const formData = this.serializeForm(this.forms.metadata);
-    const params = new URLSearchParams();
-    if (formData.appId) params.set('appId', formData.appId);
-    if (formData.bundleId) params.set('bundleId', formData.bundleId);
-    if (formData.versionId) params.set('versionId', formData.versionId);
-    
-    try {
-      const response = await fetch(`${this.apiUrl('/api/version-metadata')}?${params.toString()}`);
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to load metadata');
-      }
-      
-      const fileSizeMB = (data.fileSize / (1024 * 1024)).toFixed(2);
-      const platformInfo = data.runsOnAppleSilicon 
-        ? (data.requiresRosetta ? 'Apple Silicon (Rosetta)' : 'Apple Silicon (Native)')
-        : 'Intel only';
-      
-      this.outputs.metadata.innerHTML = `
-        <h3>${data.itemName || 'App'}</h3>
-        <dl>
-          <dt>Display Version:</dt><dd>${data.displayVersion}</dd>
-          <dt>Build Number:</dt><dd>${data.buildNumber}</dd>
-          <dt>Bundle ID:</dt><dd>${data.bundleId}</dd>
-          <dt>Release Date:</dt><dd>${new Date(data.releaseDate).toLocaleString()}</dd>
-          <dt>File Size:</dt><dd>${fileSizeMB} MB</dd>
-          <dt>Developer:</dt><dd>${data.artistName}</dd>
-          <dt>Genre:</dt><dd>${data.genre}</dd>
-          <dt>Age Rating:</dt><dd>${data.ageRating}</dd>
-          <dt>Platform:</dt><dd>${platformInfo}</dd>
-          <dt>Copyright:</dt><dd>${data.copyright}</dd>
-        </dl>
-      `;
-      this.outputs.metadata.hidden = false;
-    } catch (error) {
-      this.showToast(error.message || 'Failed to load metadata', true);
-    }
-  }
-
-  async handleDownload() {
-    const payload = this.serializeForm(this.forms.download);
-    const shouldPurchase = payload.purchaseIfNeeded === true || payload.purchaseIfNeeded === 'on';
-    if (shouldPurchase) {
-      payload.purchaseIfNeeded = true;
-    } else {
-      delete payload.purchaseIfNeeded;
-    }
-    try {
-      const response = await fetch(this.apiUrl('/api/download'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Download failed');
-      }
-      this.outputs.download.innerHTML = `
-        <div><strong>Saved to:</strong> ${data.destinationPath}</div>
-        <div><strong>SINF files:</strong> ${data.sinfCount}</div>
-      `;
-      this.outputs.download.hidden = false;
-      this.showToast('Download finished');
-    } catch (error) {
-      this.showToast(error.message || 'Download failed', true);
     }
   }
 
@@ -458,12 +713,26 @@ class IPAToolUI {
   showToast(message, isError = false) {
     if (!this.toast) return;
     this.toast.textContent = message;
-    this.toast.style.background = isError ? '#ef4444' : '#22c55e';
+    
+    // Remove all toast type classes
+    this.toast.classList.remove('success', 'error', 'info');
+    
+    // Add appropriate class
+    if (isError) {
+      this.toast.classList.add('error');
+    } else if (message.toLowerCase().includes('copied')) {
+      this.toast.classList.add('info');
+    } else {
+      this.toast.classList.add('success');
+    }
+    
+    this.toast.style.removeProperty('background');
     this.toast.hidden = false;
+    
     clearTimeout(this.toastTimer);
     this.toastTimer = setTimeout(() => {
       this.toast.hidden = true;
-    }, 4000);
+    }, 2500);
   }
 
   showAuthCodeModal(message) {

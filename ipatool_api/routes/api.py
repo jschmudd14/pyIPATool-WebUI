@@ -3,8 +3,9 @@ from __future__ import annotations
 
 from http import HTTPStatus
 from typing import Any, Dict
+from pathlib import Path
 
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, current_app, jsonify, request, send_file
 
 from ..services.appstore import AppStoreService
 from ..services.errors import (
@@ -130,6 +131,68 @@ def download():
             "sinfCount": len(download_result.sinfs),
         }
     )
+
+
+@api_bp.post("/download-stream")
+def download_stream():
+    """Stream IPA download directly to the browser."""
+    payload = request.get_json(force=True) or {}
+    account = _service().account_info()
+    app = _resolve_app(payload, account)
+    external_version_id = payload.get("externalVersionId")
+    auto_purchase = bool(payload.get("purchaseIfNeeded", False))
+
+    service = _service()
+    
+    # Use a temp directory for downloads
+    temp_dir = Path(service._storage_dir) / "temp_downloads"
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    
+    download_result = None
+    for _ in range(3):
+        try:
+            download_result = service.download(
+                account=account,
+                app=app,
+                output_path=str(temp_dir),
+                external_version_id=external_version_id,
+            )
+            break
+        except PasswordTokenExpiredError:
+            if not account.password:
+                raise
+            account = service.login(email=account.email, password=account.password)
+        except LicenseRequiredError:
+            if not auto_purchase:
+                raise
+            service.purchase(account, app)
+    
+    if download_result is None:
+        raise AppStoreError("failed to download app")
+
+    service.replicate_sinf(download_result.destination_path, download_result.sinfs)
+    
+    file_path = Path(download_result.destination_path)
+    filename = file_path.name
+    
+    def cleanup():
+        """Delete the temp file after sending."""
+        try:
+            file_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+    
+    response = send_file(
+        file_path,
+        as_attachment=True,
+        download_name=filename,
+        mimetype='application/octet-stream'
+    )
+    
+    # Schedule cleanup after response is sent
+    response.call_on_close(cleanup)
+    
+    return response
 
 
 @api_bp.get("/versions")
