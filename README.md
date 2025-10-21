@@ -73,6 +73,10 @@ The web interface will be available at `http://127.0.0.1:5000`
 1. In the expanded metadata view, click Download IPA
 2. It will first prepare (by downloading to the server cache), then pass that along to the browser to download
 
+### Installing IPAs
+
+1. Use a tool like iMazing or 3uTools to "officially" install the ipa. You cannot and do not need to "sideload" these as that tries to sign them and these are already signed as they are from the app store. They can be installed and will not expire.
+
 ## tvOS Notes
 
 - In the UI we can only search for tvOS apps which doesn't give back the internal versionID needed for downloads or finding other versions
