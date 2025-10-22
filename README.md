@@ -75,7 +75,9 @@ The web interface will be available at `http://127.0.0.1:5000`
 
 ### Installing IPAs
 
-1. Use a tool like iMazing or 3uTools to "officially" install the ipa. You cannot and do not need to "sideload" these as that tries to sign them and these are already signed as they are from the app store. They can be installed and will not expire.
+- Use a tool like iMazing or 3uTools to "officially" install the ipa. You cannot and do not need to "sideload" these as that tries to sign them and these are already signed as they are from the app store. They can be installed and will not expire.
+- Some people have also had success simply Airdropping it from a macOS computer and it will actually install it without any prompt, although I've had inconsistent results.
+- Another user also mentioned Sideloadly with Advanced Options > Signing Mode > Normal Install.
 
 ## tvOS Notes
 
