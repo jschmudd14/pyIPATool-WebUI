@@ -41,7 +41,7 @@ Run the Flask application:
 python app.py
 ```
 
-The web interface will be available at `http://127.0.0.1:5000`
+The web interface will be available at `http://127.0.0.1:5002`
 
 ### Authentication
 
