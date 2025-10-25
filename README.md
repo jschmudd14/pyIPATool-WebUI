@@ -73,12 +73,6 @@ The web interface will be available at `http://127.0.0.1:5000`
 1. In the expanded metadata view, click Download IPA
 2. It will first prepare (by downloading to the server cache), then pass that along to the browser to download
 
-### Installing IPAs
-
-- Use a tool like iMazing or 3uTools to "officially" install the ipa. You cannot and do not need to "sideload" these as that tries to sign them and these are already signed as they are from the app store. They can be installed and will not expire.
-- Some people have also had success simply Airdropping it from a macOS computer and it will actually install it without any prompt, although I've had inconsistent results.
-- Another user also mentioned Sideloadly with Advanced Options > Signing Mode > Normal Install.
-
 ## tvOS Notes
 
 - In the UI we can only search for tvOS apps which doesn't give back the internal versionID needed for downloads or finding other versions
@@ -94,7 +88,26 @@ The web interface will be available at `http://127.0.0.1:5000`
 7. Use those values to do a Direct Lookup
 8. Choose the version you want and download it
 
-## Storage Locations
+## Configuration
+
+### SSL/TLS Verification
+
+The application supports custom SSL certificates:
+
+- **Disable SSL verification** (not recommended):
+  ```bash
+  export IPATOOL_SSL_NO_VERIFY=1
+  ```
+
+- **Use custom CA bundle**:
+  ```bash
+  export IPATOOL_CA_BUNDLE=/path/to/ca-bundle.pem
+  ```
+
+- **Default CA bundle location**:
+  Place your certificate at `~/.ipatool/ca-bundle.pem`
+
+### Storage Locations
 
 The application stores data in `~/.ipatool/`:
 - `keychain.json` - Account credentials
@@ -124,34 +137,14 @@ The application provides a REST API for programmatic access:
 - The application uses password tokens for App Store authentication
 - Two-factor authentication is fully supported
 
-## Optional Configuration
-
-### SSL/TLS Verification
-
-The application supports custom SSL certificates:
-
-- **Disable SSL verification** (not recommended):
-  ```bash
-  export IPATOOL_SSL_NO_VERIFY=1
-  ```
-
-- **Use custom CA bundle**:
-  ```bash
-  export IPATOOL_CA_BUNDLE=/path/to/ca-bundle.pem
-  ```
-
-- **Default CA bundle location**:
-  Place your certificate at `~/.ipatool/ca-bundle.pem`
-  
-
 ## Troubleshooting
 
 ### "Password token expired" error
 - Sign out and sign in again to refresh the authentication token
 
 ### "License required" error
-- Enable "Purchase license automatically if required" when downloading
-- Or manually acquire the license first using the Purchase section
+- A popup will prompt you to aquire the license
+- This only works for free apps, if it is a paid app you must buy the app first in the App Store with the same account, then you can see it on here.
 
 ### Two-factor authentication not working
 - Ensure you're entering the code correctly (spaces are automatically removed)

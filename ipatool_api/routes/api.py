@@ -28,6 +28,11 @@ def _handle_appstore_error(exc: AppStoreError):
     payload = {"error": str(exc)}
     if exc.metadata is not None:
         payload["metadata"] = exc.metadata
+    
+    # Add specific handling for license errors
+    if isinstance(exc, LicenseRequiredError):
+        payload["licenseRequired"] = True
+    
     return jsonify(payload), HTTPStatus.BAD_REQUEST
 
 

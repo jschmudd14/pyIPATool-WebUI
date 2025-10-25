@@ -37,10 +37,6 @@ class IPAToolUI {
     this.versionsList = document.querySelector('#versions-list');
     this.appTitle = document.querySelector('#app-title');
     this.appSubtitle = document.querySelector('#app-subtitle');
-    this.purchaseLicenseBtn = document.querySelector('#purchase-license-btn');
-    this.purchaseModal = document.querySelector('#purchase-modal');
-    this.purchaseModalForm = document.querySelector('#purchase-modal-form');
-    this.purchaseModalCancel = document.querySelector('#purchase-modal-cancel');
     this.downloadProgress = document.querySelector('#download-progress');
     this.downloadProgressText = document.querySelector('#download-progress-text');
     this.downloadProgressFilename = document.querySelector('#download-progress-filename');
@@ -111,19 +107,6 @@ class IPAToolUI {
     this.directLookupForm?.addEventListener('submit', (event) => {
       event.preventDefault();
       this.handleDirectLookup();
-    });
-
-    this.purchaseLicenseBtn?.addEventListener('click', () => {
-      this.showPurchaseModal();
-    });
-
-    this.purchaseModalCancel?.addEventListener('click', () => {
-      this.hidePurchaseModal();
-    });
-
-    this.purchaseModalForm?.addEventListener('submit', (event) => {
-      event.preventDefault();
-      this.handlePurchaseFromModal();
     });
 
     this.refreshAccountState();
@@ -439,6 +422,14 @@ class IPAToolUI {
       const response = await fetch(`${this.apiUrl('/api/versions')}?${params.toString()}`);
       const data = await response.json();
       if (!response.ok) {
+        // Check if it's a license error
+        if (data.error && data.error.includes('license') || data.metadata?.failureType === '9610') {
+          const shouldAcquire = confirm('A license is required to view versions for this app. Would you like to acquire it now?');
+          if (shouldAcquire) {
+            await this.acquireLicenseAndRetry(appId, bundleId, externalVersionId);
+            return;
+          }
+        }
         throw new Error(data.error || 'Failed to load versions');
       }
 
@@ -447,6 +438,35 @@ class IPAToolUI {
     } catch (error) {
       this.showToast(error.message || 'Failed to load versions', true);
       this.versionsList.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div><p>${error.message}</p></div>`;
+      this.versionsSection.hidden = true;
+    }
+  }
+
+  async acquireLicenseAndRetry(appId, bundleId, externalVersionId = null) {
+    try {
+      this.showToast('Acquiring license...');
+      
+      const payload = {};
+      if (appId) payload.appId = appId;
+      if (bundleId) payload.bundleId = bundleId;
+
+      const response = await fetch(this.apiUrl('/api/purchase'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to acquire license');
+      }
+      
+      this.showToast('License acquired successfully');
+      
+      // Retry loading versions
+      await this.loadAppVersions(appId, bundleId, externalVersionId);
+    } catch (error) {
+      this.showToast(error.message || 'Failed to acquire license', true);
       this.versionsSection.hidden = true;
     }
   }
@@ -490,6 +510,8 @@ class IPAToolUI {
     const response = await fetch(`${this.apiUrl('/api/version-metadata')}?${params.toString()}`);
     const data = await response.json();
     if (!response.ok) {
+      // For metadata errors, we'll just skip this version instead of prompting
+      // since we're loading multiple versions at once
       throw new Error(data.error || 'Failed to load metadata');
     }
     return data;
@@ -527,7 +549,6 @@ class IPAToolUI {
             </dl>
             <div class="version-actions">
               <button type="button" class="download-version-btn" data-version-id="${version.versionId}">Download IPA</button>
-              <button type="button" class="download-with-purchase-btn secondary" data-version-id="${version.versionId}">Download + Acquire License</button>
             </div>
           </div>
         </div>
@@ -541,16 +562,10 @@ class IPAToolUI {
       });
 
       const downloadBtn = card.querySelector('.download-version-btn');
-      const downloadWithPurchaseBtn = card.querySelector('.download-with-purchase-btn');
       
       downloadBtn?.addEventListener('click', (e) => {
         e.stopPropagation();
         this.downloadVersion(card.dataset.versionId, false);
-      });
-
-      downloadWithPurchaseBtn?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.downloadVersion(card.dataset.versionId, true);
       });
     });
 
@@ -653,41 +668,6 @@ class IPAToolUI {
   hideDownloadProgress() {
     if (this.downloadProgress) {
       this.downloadProgress.hidden = true;
-    }
-  }
-
-  showPurchaseModal() {
-    if (!this.purchaseModal) return;
-    document.querySelector('#purchase-app-id').value = this.currentAppId || '';
-    document.querySelector('#purchase-bundle-id').value = this.currentBundleId || '';
-    this.purchaseModal.hidden = false;
-  }
-
-  hidePurchaseModal() {
-    if (this.purchaseModal) {
-      this.purchaseModal.hidden = true;
-    }
-  }
-
-  async handlePurchaseFromModal() {
-    const payload = {};
-    if (this.currentAppId) payload.appId = this.currentAppId;
-    if (this.currentBundleId) payload.bundleId = this.currentBundleId;
-
-    try {
-      const response = await fetch(this.apiUrl('/api/purchase'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Purchase failed');
-      }
-      this.showToast('License acquired');
-      this.hidePurchaseModal();
-    } catch (error) {
-      this.showToast(error.message || 'Purchase failed', true);
     }
   }
 
