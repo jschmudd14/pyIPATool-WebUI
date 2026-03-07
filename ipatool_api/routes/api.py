@@ -58,6 +58,17 @@ def login():
 
 @api_bp.post("/auth/logout")
 def logout():
+    """Sign out of the current App Store session.
+
+    Prior to the recent changes this only deleted the account blob from the
+    keychain file; the HTTP cookie jar was left intact which meant Apple
+    continued to recognise the session and never prompted for a new 2‑factor
+    code.  ``AppStoreService.revoke()`` now clears cookies too.
+
+    If you're wiping storage manually for testing make sure the server is
+    restarted or call this endpoint after removing the files, otherwise the in
+    memory cookie jar will still hold valid tokens.
+    """
     _service().revoke()
     return jsonify({"status": "ok"})
 

@@ -150,7 +150,35 @@ class AppStoreService:
         return Account.from_dict(payload)
 
     def revoke(self) -> None:
+        """Forget the currently-stored credentials.
+
+        The earlier implementation only removed the account blob from the keychain
+        which left the HTTP client's cookie jar intact.  That meant subsequent
+        login attempts reused an existing App Store session and Apple never asked
+        for a fresh 2‑factor code.  In order to fully reset the state we need to
+        clear both pieces of storage.
+        """
+        # remove the serialized account
         self._keychain.remove("account")
+
+        # clear cookies in memory and on disk so the next request starts a
+        # completely fresh session.
+        try:
+            self._http.session.cookies.clear()
+        except Exception:  # pragma: no cover - paranoia
+            pass
+        try:
+            self._http._cookie_store.clear()
+        except Exception:  # pragma: no cover
+            pass
+
+        # rotate the device guid as well; Apple can trust the guid itself even
+        # after cookies are gone, so using a fresh guid forces a full login
+        # challenge on the next attempt.
+        try:
+            self._machine.reset_device_guid()
+        except Exception:  # pragma: no cover
+            pass
 
     # ------------------------------------------------------------------
     # Bag retrieval
@@ -464,7 +492,7 @@ class AppStoreService:
             raise AppStoreError("network request failed", metadata={"error": str(exc)}) from exc
 
     def _guid(self) -> str:
-        return self._machine.mac_address().replace(":", "").upper()
+        return self._machine.device_guid()
 
     def _send_download_request(
         self,

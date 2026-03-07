@@ -45,3 +45,21 @@ class CookieStore:
 
     def save(self) -> None:
         self.jar.save()
+
+    def clear(self) -> None:
+        """Remove all cookies from both the in‑memory jar and the file on disk.
+
+        This helper is used by :class:`AppStoreService` when the user signs out,
+        ensuring that the next login attempt can't reuse any leftover session
+        cookies.  Tests can also call this directly.
+        """
+        # clear in-memory cookie jar
+        self.jar.clear()
+
+        # delete the file if it exists; ``PersistentCookieJar.save`` will
+        # recreate it when needed.
+        try:
+            if self._path.exists():
+                self._path.unlink()
+        except Exception:  # pragma: no cover
+            pass
