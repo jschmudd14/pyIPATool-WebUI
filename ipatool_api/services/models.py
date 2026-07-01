@@ -105,7 +105,8 @@ class ListVersionsOutput:
 class GetVersionMetadataOutput:
     display_version: str
     build_number: str
-    release_date: datetime
+    release_date: Optional[datetime]
+    release_date_display: str
     file_size: int
     bundle_id: str
     artist_name: str
@@ -120,7 +121,8 @@ class GetVersionMetadataOutput:
         return {
             "displayVersion": self.display_version,
             "buildNumber": self.build_number,
-            "releaseDate": self.release_date.isoformat(),
+            "releaseDate": self.release_date.isoformat() if self.release_date else None,
+            "releaseDateDisplay": self.release_date_display,
             "fileSize": self.file_size,
             "bundleId": self.bundle_id,
             "artistName": self.artist_name,

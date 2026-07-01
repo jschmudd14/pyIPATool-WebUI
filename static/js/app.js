@@ -520,7 +520,9 @@ class IPAToolUI {
   renderVersionCards(versions) {
     this.versionsList.innerHTML = versions.map((version, index) => {
       const fileSizeMB = (version.fileSize / (1024 * 1024)).toFixed(2);
-      const releaseDate = new Date(version.releaseDate).toLocaleDateString();
+      const releaseDate = version.releaseDateDisplay || (version.releaseDate
+        ? new Date(version.releaseDate).toLocaleDateString()
+        : 'Unknown');
 
       return `
         <div class="version-card" data-version-id="${version.versionId}" data-index="${index}">
