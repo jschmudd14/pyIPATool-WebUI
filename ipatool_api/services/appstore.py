@@ -4,11 +4,15 @@ from __future__ import annotations
 import json
 import os
 import plistlib
+import html
+import re
+from email.utils import parsedate_to_datetime
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
+from urllib.parse import urlparse
 
 import requests
 
@@ -29,7 +33,9 @@ from .http_client import (
     HTTPRequest,
     HTTPResult,
     Payload,
+    ResponseDecodeError,
     XMLPayload,
+    extract_urls,
 )
 from .keychain import FileKeychain
 from .machine import Machine
@@ -53,6 +59,45 @@ class AppStoreConfig:
     verify: bool | str = True
 
 
+def normalize_auth_endpoint(*endpoints: str) -> str:
+    for endpoint in endpoints:
+        endpoint = (endpoint or "").strip()
+        if not endpoint:
+            continue
+
+        normalized = normalize_native_auth_endpoint(endpoint)
+        return normalized or endpoint
+
+    return constants.DEFAULT_NATIVE_AUTH_ENDPOINT
+
+
+def normalize_native_auth_endpoint(endpoint: str) -> str:
+    parsed = urlparse(endpoint)
+    if parsed.hostname != constants.PRIVATE_AUTH_DOMAIN:
+        return ""
+
+    path = parsed.path.rstrip("/")
+    if not path.endswith("/fast"):
+        path = f"{path.rstrip('/')}/fast"
+    return parsed._replace(path=f"{path}/").geturl()
+
+
+def auth_endpoint_from_response_error(exc: ResponseDecodeError) -> str:
+    parts = list(exc.urls)
+    if exc.body:
+        parts.append(exc.body)
+    return auth_endpoint_from_text(" ".join(parts))
+
+
+def auth_endpoint_from_text(text: str) -> str:
+    text = html.unescape(text.replace("\\/", "/"))
+    for url in extract_urls(text.encode("utf-8", errors="replace")):
+        endpoint = normalize_native_auth_endpoint(url.rstrip(".,;)"))
+        if endpoint:
+            return endpoint
+    return ""
+
+
 class AppStoreService:
     """Port of the Go ``appstore.AppStore`` implementation."""
 
@@ -60,6 +105,8 @@ class AppStoreService:
         self._keychain = config.keychain
         self._machine = config.machine
         self._http = HTTPClient(config.cookie_store, verify=config.verify)
+        self._verify = config.verify
+        self._version_history_cache: Dict[Tuple[int, str], Dict[str, str]] = {}
         self._storage_dir = Path(config.machine.home_directory()) / ".ipatool"
         self._storage_dir.mkdir(parents=True, exist_ok=True)
 
@@ -75,7 +122,7 @@ class AppStoreService:
         retry = False
 
         bag_result = self.bag()
-        auth_endpoint = bag_result.auth_endpoint
+        auth_endpoint = normalize_auth_endpoint(bag_result.auth_endpoint)
 
         for attempt in range(1, 5):
             payload: Payload = XMLPayload(
@@ -98,7 +145,21 @@ class AppStoreService:
                 follow_redirects=False,
             )
             print(f"Attempt {attempt}: POST {url}")
-            result = self._send_request(request)
+            try:
+                result = self._send_request(request, allow_decode_error=True)
+            except ResponseDecodeError as exc:
+                discovered_endpoint = auth_endpoint_from_response_error(exc)
+                if discovered_endpoint and discovered_endpoint != auth_endpoint:
+                    auth_endpoint = discovered_endpoint
+                    redirect_url = None
+                    continue
+                raise AppStoreError("unexpected response from Apple", metadata={
+                    "status": exc.status_code,
+                    "headers": exc.headers,
+                    "contentType": exc.content_type,
+                    "body": exc.body,
+                    "urls": exc.urls,
+                }) from exc
             print(f"Status: {result.status_code}")
             print(f"Headers: {result.headers}")
             print(f"Data keys: {list(result.data.keys()) if isinstance(result.data, dict) else type(result.data)}")
@@ -196,7 +257,10 @@ class AppStoreService:
         )
         result = self._send_request(request)
         url_bag = result.data.get("urlBag", {})
-        auth_endpoint = url_bag.get("authenticateAccount", "")
+        auth_endpoint = normalize_auth_endpoint(
+            result.data.get("authenticateAccount", ""),
+            url_bag.get("authenticateAccount", ""),
+        )
         return BagOutput(auth_endpoint=auth_endpoint)
 
     # ------------------------------------------------------------------
@@ -388,19 +452,21 @@ class AppStoreService:
         metadata = item.get("metadata", {})
         asset_info = item.get("asset-info", {})
         
-        release_date = metadata.get("releaseDate")
-        try:
-            release = datetime.fromisoformat(str(release_date).replace("Z", "+00:00"))
-        except ValueError as exc:
-            raise AppStoreError("failed to parse release date", metadata=metadata) from exc
+        display_version = str(metadata.get("bundleShortVersionString", "N/A"))
+        release = self._release_date_from_metadata(metadata, result.headers)
+        history_date = self._app_store_history_dates(account, app).get(display_version)
+        if history_date:
+            release = self._parse_apple_date(history_date)
+        release_display = self._release_date_display(account, app, metadata, release)
 
         age_ratings = metadata.get("appAgeRatings", {})
         us_rating = age_ratings.get("US", {})
 
         return GetVersionMetadataOutput(
-            display_version=str(metadata.get("bundleShortVersionString", "N/A")),
+            display_version=display_version,
             build_number=str(metadata.get("bundleVersion", "N/A")),
             release_date=release,
+            release_date_display=release_display,
             file_size=asset_info.get("file-size", 0),
             bundle_id=str(metadata.get("softwareVersionBundleId", "N/A")),
             artist_name=str(metadata.get("artistName", "N/A")),
@@ -443,6 +509,12 @@ class AppStoreService:
         if not failure_type and customer_message == constants.CUSTOMER_MESSAGE_ACCOUNT_DISABLED:
             raise AppStoreError("account is disabled", metadata=data)
 
+        if not failure_type and customer_message == constants.CUSTOMER_MESSAGE_ACTION_SIGN_IN_PAGE:
+            raise AppStoreError(
+                "account requires browser sign-in (2FA or Apple ID review required)",
+                metadata=data,
+            )
+
         if failure_type and customer_message:
             raise AppStoreError(customer_message, metadata=data)
 
@@ -467,7 +539,110 @@ class AppStoreService:
         query = urlencode(params)
         return f"https://{constants.ITUNES_API_DOMAIN}{path}?{query}"
 
-    def _send_request(self, request: HTTPRequest) -> HTTPResult:
+    def _release_date_from_metadata(
+        self,
+        metadata: Dict[str, Any],
+        headers: Dict[str, str],
+    ) -> Optional[datetime]:
+        generated_dates = self._response_generated_dates(headers)
+        for key in (
+            "softwareVersionReleaseDate",
+            "versionReleaseDate",
+            "currentVersionReleaseDate",
+        ):
+            raw_value = metadata.get(key)
+            parsed = self._parse_apple_date(raw_value)
+            if not parsed:
+                continue
+            if any(parsed == generated or parsed.date() == generated.date() for generated in generated_dates):
+                continue
+            return parsed
+        return None
+
+    def _release_date_display(
+        self,
+        account: Account,
+        app: App,
+        metadata: Dict[str, Any],
+        release: Optional[datetime],
+    ) -> str:
+        display_version = str(metadata.get("bundleShortVersionString", "")).strip()
+        history_date = self._app_store_history_dates(account, app).get(display_version)
+        if history_date:
+            return history_date
+        if release:
+            return release.date().isoformat()
+
+        original_release = self._parse_apple_date(metadata.get("releaseDate"))
+        if original_release:
+            return f"Unknown ({original_release.date().isoformat()})"
+        return "Unknown"
+
+    def _app_store_history_dates(self, account: Account, app: App) -> Dict[str, str]:
+        country = self._country_code_from_storefront(account.store_front).lower()
+        cache_key = (app.id, country)
+        cached = self._version_history_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        url = f"https://apps.apple.com/{country}/app/id{app.id}"
+        try:
+            response = requests.get(
+                url,
+                headers={"User-Agent": constants.DEFAULT_USER_AGENT},
+                timeout=10,
+                verify=self._verify,
+            )
+            response.raise_for_status()
+        except requests.RequestException as exc:
+            print(f"Failed to fetch App Store version history from {url}: {exc}")
+            self._version_history_cache[cache_key] = {}
+            return {}
+
+        history = self._parse_app_store_history_dates(response.text)
+        self._version_history_cache[cache_key] = history
+        return history
+
+    def _parse_app_store_history_dates(self, page_html: str) -> Dict[str, str]:
+        history: Dict[str, str] = {}
+        pattern = re.compile(
+            r'<div[^>]*class="[^"]*\bmetadata\b[^"]*"[^>]*>\s*'
+            r'<span[^>]*>\s*([^<]+?)\s*</span>\s*'
+            r'<time[^>]*datetime="(\d{4}-\d{2}-\d{2})"[^>]*>',
+            re.IGNORECASE | re.DOTALL,
+        )
+        for version, release_date in pattern.findall(page_html):
+            version = html.unescape(version).strip()
+            if version and version not in history:
+                history[version] = release_date
+        return history
+
+    def _response_generated_dates(self, headers: Dict[str, str]) -> List[datetime]:
+        dates: List[datetime] = []
+        for key in ("x-apple-date-generated", "Date", "Expires"):
+            parsed = self._parse_apple_date(headers.get(key))
+            if parsed:
+                dates.append(parsed)
+        return dates
+
+    def _parse_apple_date(self, value: Any) -> Optional[datetime]:
+        if not value:
+            return None
+        if isinstance(value, datetime):
+            return value
+        text = str(value).strip()
+        if not text:
+            return None
+        try:
+            return datetime.fromisoformat(text.replace("Z", "+00:00"))
+        except ValueError:
+            pass
+        try:
+            return parsedate_to_datetime(text)
+        except (TypeError, ValueError):
+            return None
+
+    def _send_request(self, request: HTTPRequest, allow_decode_error: bool = False) -> HTTPResult:
         try:
             print(f"Sending {request.method} request to {request.url}")
             response = self._http.send(request)
@@ -486,6 +661,17 @@ class AppStoreService:
                 "status": exc.status_code,
                 "headers": exc.headers,
                 "body": body_text,
+            }
+            raise AppStoreError("unexpected response from Apple", metadata=metadata) from exc
+        except ResponseDecodeError as exc:
+            if allow_decode_error:
+                raise
+            metadata = {
+                "status": exc.status_code,
+                "headers": exc.headers,
+                "contentType": exc.content_type,
+                "body": exc.body,
+                "urls": exc.urls,
             }
             raise AppStoreError("unexpected response from Apple", metadata=metadata) from exc
         except requests.RequestException as exc:
@@ -663,4 +849,3 @@ class AppStoreService:
         info = ZipInfo(full_path)
         info.compress_type = ZIP_DEFLATED
         zip_file.writestr(info, sinfs[0].data)
-

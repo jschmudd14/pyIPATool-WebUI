@@ -12,6 +12,18 @@ from urllib.parse import urlencode
 _DOCUMENT_XML_RE = re.compile(r"(?is)<Document\b[^>]*>(.*)</Document>")
 _PLIST_XML_RE = re.compile(r"(?is)<plist\b[^>]*>.*?</plist>")
 _DICT_XML_RE = re.compile(r"(?is)<dict\b[^>]*>.*</dict>")
+_URL_RE = re.compile(rb"""https?://[^\s"'<>]+""")
+
+
+def extract_urls(body: bytes) -> list[str]:
+    return [match.decode("utf-8", errors="replace") for match in _URL_RE.findall(body)]
+
+
+def _truncate_body(body: bytes, max_chars: int = 500) -> str:
+    text = body.decode("utf-8", errors="replace").strip()
+    if len(text) <= max_chars:
+        return text
+    return text[:max_chars] + "..."
 
 
 def _normalize_plist_body(body: bytes) -> bytes:
@@ -73,6 +85,28 @@ class HTTPClientResponseError(RuntimeError):
         self.status_code = status_code
         self.headers = headers
         self.body = body
+
+
+class ResponseDecodeError(RuntimeError):
+    """Raised when Apple's XML/plist response cannot be decoded."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        cause: Exception,
+        status_code: int,
+        headers: Dict[str, str],
+        body: bytes,
+    ) -> None:
+        super().__init__(message)
+        self.__cause__ = cause
+        self.cause = cause
+        self.status_code = status_code
+        self.headers = headers
+        self.content_type = headers.get("Content-Type", "")
+        self.body = _truncate_body(body)
+        self.urls = extract_urls(body)
 
 
 @dataclass(slots=True)
@@ -179,8 +213,9 @@ class HTTPClient:
                         body=raw_body,
                     )
             except (ValueError, plistlib.InvalidFileException) as exc:
-                raise HTTPClientResponseError(
-                    "Failed to parse server response",
+                raise ResponseDecodeError(
+                    f"failed to unmarshal xml: {exc}",
+                    cause=exc,
                     status_code=response.status_code,
                     headers=raw_headers,
                     body=raw_body,
